@@ -1,71 +1,9 @@
-# from fastapi import APIRouter, Request, Response, HTTPException, Header
-# from src.config import settings
-# from src.utils import verify_slack_request, create_modal_view
-# import requests
-# from starlette.responses import JSONResponse
-# import json
-
-# router = APIRouter()
-
-# @router.post("/slack/commands")
-# async def incident(
-#     request: Request,
-#     response: Response,
-#     slack_request_timestamp: str = Header(None),
-#     slack_signature: str = Header(None)
-# ):
-#     # Handle Slack URL verification
-#     body = await request.json()
-#     if "challenge" in body:
-#         return JSONResponse(content={"challenge": body["challenge"]})
-
-#     # Verify Slack request
-#     await verify_slack_request(request, slack_signature, slack_request_timestamp)
-
-#     form_data = await request.form()
-    
-#     if not form_data:
-#         raise HTTPException(status_code=400, detail="Missing form data")
-#     # Process form data
-#     token = form_data.get("token")
-#     if token != settings.SLACK_VERIFICATION_TOKEN:
-#         raise HTTPException(status_code=400, detail="Invalid token")
-    
-    
-#     command = form_data.get("command")
-#     trigger_id = form_data.get("trigger_id")
-    
-#     if command == "/create-incident":
-#         headers = {
-#             "Content-Type": "application/json(charset=utf-8)",
-#             "Authorization": f"Bearer {settings.SLACK_BOT_TOKEN}"
-#         }
-#         modal_view = create_modal_view()
-#         payload = {
-#             "trigger_id": trigger_id,
-#             "view": modal_view
-#         }
-#         print(json.dumps(payload, indent=2))  # Log the payload for debugging
-        
-#         slack_response = requests.post("https://slack.com/api/views.open", headers=headers, json=payload)
-#         if slack_response.status_code != 200 or not response.json().get("ok"):
-#             raise HTTPException(status_code=400, detail=f"Failed to open the form: {slack_response.text}")
-#         return JSONResponse(status_code=200, content={"response_type": "ephemeral", "text": "Opening incident report form..."})
-#     else:
-#         return JSONResponse(status_code=404, content={"detail": "Command not found"})
-
-
-
-
-
-
-
 from fastapi import APIRouter, Request, Response, HTTPException, Header
 from src.utils import verify_slack_request, create_modal_view
 from starlette.responses import JSONResponse
 from src.config import settings
 import os
-import requests
+import requests # type: ignore
 import json
 import hashlib
 import hmac
@@ -130,7 +68,7 @@ async def incident(
     else:
         return JSONResponse(status_code=404, content={"detail": "Command not found"})
 
-Endpoint to handle interactivity
+#Endpoint to handle interactivity
 @router.post("/slack/interactions")
 async def slack_interactions(
     request: Request,
