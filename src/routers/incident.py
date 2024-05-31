@@ -18,17 +18,7 @@ async def incident(
     x_slack_signature: str = Header(None),
 ):
 
-    # Parse JSON body
-    try:
-        body = await request.json()
-    except Exception as e:
-        raise HTTPException(
-            status_code=400, detail=f"Failed to parse JSON body: {str(e)}"
-        )
-
-    # Handle URL verification with slack to accept the challenge parameter
-    if body.get("type") == "url_verification":
-        return {"challenge": body.get("challenge")}
+    
 
     # Debugging statement to check header values
     headers = request.headers
