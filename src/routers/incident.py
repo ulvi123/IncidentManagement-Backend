@@ -130,38 +130,38 @@ async def incident(
     else:
         return JSONResponse(status_code=404, content={"detail": "Command not found"})
 
-# Endpoint to handle interactivity
-# @router.post("/slack/interactions")
-# async def slack_interactions(
-#     request: Request,
-#     slack_signature: str = Header(None),
-#     slack_request_timestamp: str = Header(None)
-# ):
-#     body = await request.body()
-#     try:
-#         payload = json.loads(body.decode("utf-8"))
-#     except json.JSONDecodeError as e:
-#         raise HTTPException(status_code=400, detail=f"Failed to parse request body: {str(e)}")
+Endpoint to handle interactivity
+@router.post("/slack/interactions")
+async def slack_interactions(
+    request: Request,
+    slack_signature: str = Header(None),
+    slack_request_timestamp: str = Header(None)
+):
+    body = await request.body()
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse request body: {str(e)}")
 
-#     # Verify Slack request
-#     await verify_slack_request(request, slack_signature, slack_request_timestamp)
+    # Verify Slack request
+    await verify_slack_request(request, slack_signature, slack_request_timestamp)
 
-#     token = payload.get("token")
+    token = payload.get("token")
 
-#     if token != settings.SLACK_VERIFICATION_TOKEN:
-#         raise HTTPException(status_code=400, detail="Invalid token")
+    if token != settings.SLACK_VERIFICATION_TOKEN:
+        raise HTTPException(status_code=400, detail="Invalid token")
 
-#     if payload.get("type") == "view_submission":
-#         # Process the submitted modal data here
-#         print(payload)  # Log the payload for debugging
-#         return JSONResponse(content={"response_action": "clear"})
+    if payload.get("type") == "view_submission":
+        # Process the submitted modal data here
+        print(payload)  # Log the payload for debugging
+        return JSONResponse(content={"response_action": "clear"})
 
-# #     return JSONResponse(content={})
+#     return JSONResponse(content={})
 
-# @router.post("/incidents")
-# def create_incident():
-#     return {"status": "success", "message": "Incident form processed successfully"}
+@router.post("/incidents")
+def create_incident():
+    return {"status": "success", "message": "Incident form processed successfully"}
 
-# @router.get("/incidents/{incident_id}")
-# def get_incident(incident_id: int):
-#     return {"incident_id": incident_id}
+@router.get("/incidents/{incident_id}")
+def get_incident(incident_id: int):
+    return {"incident_id": incident_id}
