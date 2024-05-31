@@ -23,6 +23,18 @@ async def verify_slack_request(
 
     if not hmac.compare_digest(my_signature, x_slack_signature):
         raise HTTPException(status_code=400, detail="Invalid request signature")
+    
+    
+async def validate_token(self,cls, values):
+        token = values.get('token')
+        x_slack_signature = values.get('HTTP_X_SLACK_SIGNATURE')
+        slack_request_timestamp = values.get('HTTP_X_SLACK_REQUEST_TIMESTAMP')
+        sig_base = f"v0:{slack_request_timestamp}:{values.get('raw_body')}".encode('utf-8')
+        slack_signing_secret = settings.slack_signing_secret
+        slack_hash = 'v0=' + hmac.new(settings.slack_signing_secret.encode('utf-8'), sig_base, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(slack_hash, x_slack_signature):
+            raise ValueError("Invalid Slack request signature")
+        return values
 
 
 async def slack_challenge_parameter_verification(request: Request):
