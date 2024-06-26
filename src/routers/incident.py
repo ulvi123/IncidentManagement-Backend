@@ -16,7 +16,27 @@ from src.helperFunctions.opsgenie import create_alert
 router = APIRouter()
 
 
-# Endpoint to handle slash commands
+# API endpoint for handling Slack slash commands. This endpoint is responsible for
+# handling incidents reported through Slack's slash commands feature.
+#
+# Slash commands are a way for Slack users to interact with external integrations
+# by typing a slash command in a channel, private group, or direct message.
+#
+# In this case, the /incident slash command is used to report incidents to the
+# incident management system. When a user types /incident, a modal dialog is
+# presented to the user to collect information about the incident. The user
+# can then fill in the details of the incident and submit it to the system.
+#
+# This endpoint receives HTTP POST requests from Slack with the details of the
+# slash command and its associated payload. The endpoint verifies the
+# authenticity of the request using a cryptographic signature sent by Slack.
+# If the request is valid, the endpoint processes the payload and either
+# creates a new incident or updates an existing one in the system.
+#
+# The endpoint is designed to be used with FastAPI, a modern, fast (high-performance)
+# web framework for building APIs with Python 3.6+ based on standard Python type hints.
+# FastAPI automatically generates an OpenAPI specification for the API, which can
+# be used by clients to interact with the API.
 @router.post("/slack/commands")
 async def incident(
     request: Request,
@@ -45,7 +65,7 @@ async def incident(
             status_code=400, detail=f"Failed to parse form data: {str(e)}"
         )
 
-    # Handle URL verification
+    # Handle URL verification with slack
     if form_data.get("type") == "url_verification":
         return {"challenge": form_data.get("challenge")}
 
@@ -225,7 +245,7 @@ async def slack_interactions(
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
             
             
-            #Jira integration-the logic is not implmented yet
+            #Jira integration-the logic is not implemented yet
             
             
             
