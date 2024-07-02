@@ -12,6 +12,7 @@ import json
 from pydantic import ValidationError
 from datetime import datetime
 from src.helperFunctions.opsgenie import create_alert
+from src.helperFunctions.jira import create_jira_ticket
 
 router = APIRouter()
 
@@ -231,33 +232,25 @@ async def slack_interactions(
                 raise HTTPException(
                     status_code=400, detail=f"Failed to parse request body: {str(e)}"
                 )
-
+                
+            
             # Time to save the incident to our postgre database
             db_incident = models.Incident(**incident.dict())
             db.add(db_incident)
             db.commit()
-            db.refresh(db_incident)
-            
+            db.refresh(db_incident)  
             #Opsgenie integration
             try:
                 await create_alert(db_incident)
             except Exception as e:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
             
-            
             #Jira integration-the logic is not implemented yet
-            
-            
-            
-            # Return the response to slack user in a form of a json
-            return JSONResponse(
-                status_code=201,
-                content={
-                    "response_type": "in_channel",
-                    "text": "Incident created successfully",
-                },
-            )
-
+            try:
+                issue = create_jira_ticket(incident.dict())
+                return {"issue_key": issue.key}
+            except Exception as e:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))    
         else:
             return JSONResponse(
                 status_code=404, content={"detail": "Command or callback ID not found"}
@@ -266,18 +259,3 @@ async def slack_interactions(
     return JSONResponse(status_code=404, content={"detail": "Event type not found"})
 
 
-#add response model for the single incident
-# @router.get("/slack/interactions")
-# async def get_all_incidents(db:Session=Depends(get_db)):
-#     incidents = db.query(models.Incident).all()
-#     return incidents
-
-
-# @router.get("/slack/interactions",response_model=schemas.IncidentOut)
-# async def read_incident(incident_id:int, db:Session=Depends(get_db)):
-#     single_incident = db.query(models.Incident).filter(models.Incident.id == incident_id).first()
-#     if not single_incident:
-#         raise HTTPException(status_code=400,detail=f"The incident with {incident_id} was not found")
-    
-#     return single_incident
-    
