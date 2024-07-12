@@ -3,7 +3,7 @@ import json
 import requests
 from fastapi import HTTPException, status
 from src.config import settings
-
+from src.models import Incident  
 # Assuming `Settings` and environment variables are correctly defined
 # and loaded from .env as shown previously
 
@@ -12,39 +12,45 @@ def get_jira_auth():
     base_64_auth = base64.b64encode(auth_str.encode()).decode()
     return base_64_auth
 
-
-
+    
 def create_jira_ticket(incident: dict):
     jira_url = f"{settings.jira_server}/rest/api/2/issue"
-    
     base_64_auth = get_jira_auth()
     headers = {
         'Authorization': f"Basic {base_64_auth}",
         'Content-Type': 'application/json'
     }
+    
+    # Convert times to ISO format, if they are not None
+    start_time_iso = incident.start_time.isoformat() if incident.start_time else None
+    end_time_iso = incident.end_time.isoformat() if incident.end_time else None
 
     issue_dict = {
         'fields': {
             'project': {'key': 'SO'},
-            'summary': f"Incident: {incident['affected_products']} - {incident['severity']}",
-            'description': (
-                f"Description: {incident['description']}\n"
-                f"Severity: {incident['severity']}\n"
-                f"Affected Products: {incident['affected_products']}\n"
-                f"Suspected Owning Team: {incident['suspected_owning_team']}\n"
-                f"Start Time: {incident['start_time']}\n"
-                f"Customer Affected: {'Yes' if incident['p1_customer_affected'] else 'No'}\n"
-                f"Suspected Affected Components: {incident['suspected_affected_components']}\n"
-                f"Message for SP: {incident.get('message_for_sp', 'N/A')}\n"
-                f"Status Page Notification: {'Yes' if incident['statuspage_notification'] else 'No'}\n"
-                f"Separate Channel Creation: {'Yes' if incident['separate_channel_creation'] else 'No'}"
+            'summary': f"Incident: {incident.affected_products} - {incident.description}",
+           'description': (
+                f"Description: {incident.description}\n"
+                f"Severity: {incident.severity}\n"
+                f"Affected Products: {incident.affected_products}\n"
+                f"Suspected Owning Team: {incident.suspected_owning_team}\n"
+                f"Start Time: {incident.start_time}\n"
+                f"End Time: {incident.end_time}\n" 
+                f"Customer Affected: {'Yes' if incident.p1_customer_affected else 'No'}\n"
+                f"Suspected Affected Components: {incident.suspected_affected_components}\n"
+                f"Message for SP: {incident.message_for_sp or 'N/A'}\n"
+                f"Status Page Notification: {'Yes' if incident.statuspage_notification else 'No'}\n"
+                f"Separate Channel Creation: {'Yes' if incident.separate_channel_creation else 'No'}"
             ),
             'issuetype': {'name': 'Service Outage'},  
             'reporter': {'name': settings.jira_email},
             
             #Custom fields
-            'customfield_12608': incident['start_time'].isoformat(),
-            # 'customfield_16130': incident['affected_products'],
+            # 'customfield_12608': start_time_iso,
+            'customfield_12607': end_time_iso,
+            # 'customfield_17271': owning_team,
+            # 'customfield_17272': products_affected,
+            # 'customfield_16998': [{'value': incident.suspected_affected_components}] if incident.suspected_affected_components else [],
         }
     }
 

@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request, Response, HTTPException, Header, status,
 from typing import List
 from sqlalchemy.orm import Session 
 from src import models
+from src.models import Incident
 from src import schemas
 from src.database import get_db
 from src.utils import verify_slack_request, create_modal_view
@@ -161,6 +162,10 @@ async def slack_interactions(
                 start_time = state_values.get("start_time_picker", {}).get("start_time_picker_action", {}).get("selected_time")
                 end_date = state_values.get("end_time", {}).get("end_date_action", {}).get("selected_date")
                 end_time = state_values.get("end_time_picker", {}).get("end_time_picker_action", {}).get("selected_time")
+                
+                # Logging extracted values
+                print(f"Extracted start_date: {start_date}, start_time: {start_time}")
+                print(f"Extracted end_date: {end_date}, end_time: {end_time}")
 
                 
                 if not start_date or not start_time:
@@ -172,69 +177,21 @@ async def slack_interactions(
                 start_datetime_str = f"{start_date}T{start_time}:00"
                 end_datetime_str = f"{end_date}T{end_time}:00"
                 
+                  # Logging combined datetime strings
+                print(f"Combined start_datetime_str: {start_datetime_str}")
+                print(f"Combined end_datetime_str: {end_datetime_str}")
+                
                 #Exception handling
                 try:
                     start_time_obj = datetime.strptime(start_datetime_str, '%Y-%m-%dT%H:%M:%S')
                     end_time_obj = datetime.strptime(end_datetime_str, '%Y-%m-%dT%H:%M:%S')
                 except ValueError:
                     raise HTTPException(status_code=400, detail="Invalid datetime format")
-
-                # Building the incident object
-                # incident_data = {
-                #     "affected_products": state_values.get("affected_products", {})
-                #     .get("affected_products_action", {})
-                #     .get("selected_option", {})
-                #     .get("value"),
-                #     "severity": state_values.get("severity", {})
-                #     .get("severity_action", {})
-                #     .get("selected_option", {})
-                #     .get("value"),
-                #     "suspected_owning_team": state_values.get(
-                #         "suspected_owning_team", {}
-                #     )
-                #     .get("suspected_owning_team_action", {})
-                #     .get("selected_options", [{}])[0]
-                #     .get("value"),
-                #     "start_time": start_time.isoformat(),  # Convert datetime to string
-                #     "p1_customer_affected": "p1_customer_affected"
-                #     in [
-                #         option.get("value")
-                #         for option in state_values.get("p1_customer_affected", {})
-                #         .get("p1_customer_affected_action", {})
-                #         .get("selected_options", [])
-                #     ],
-                #     "suspected_affected_components": state_values.get(
-                #         "suspected_affected_components", {}
-                #     )
-                #     .get("suspected_affected_components_action", {})
-                #     .get("selected_option", {})
-                #     .get("value"),
-                #     "description": state_values.get("description", {})
-                #     .get("description_action", {})
-                #     .get("value"),
-                #     "message_for_sp": state_values.get("message_for_sp", {})
-                #     .get("message_for_sp_action", {})
-                #     .get("value", ""),
-                #     "statuspage_notification": "statuspage_notification"
-                #     in [
-                #         option.get("value")
-                #         for option in state_values.get(
-                #             "flags_for_statuspage_notification", {}
-                #         )
-                #         .get("flags_for_statuspage_notification_action", {})
-                #         .get("selected_options", [])
-                #     ],
-                #     "separate_channel_creation": "separate_channel_creation"
-                #     in [
-                #         option.get("value")
-                #         for option in state_values.get(
-                #             "flags_for_statuspage_notification", {}
-                #         )
-                #         .get("flags_for_statuspage_notification_action", {})
-                #         .get("selected_options", [])
-                #     ],
-                # }
                 
+                # Logging parsed datetime objects
+                print(f"Parsed start_time_obj: {start_time_obj}")
+                print(f"Parsed end_time_obj: {end_time_obj}")
+
                 
                 incident_data = {
                     "affected_products": state_values.get("affected_products", {}).get("affected_products_action", {}).get("selected_option", {}).get("value"),
@@ -251,7 +208,7 @@ async def slack_interactions(
                 }
 
                 print(
-                    "Incident data:", json.dumps(incident_data, indent=2)
+                    "Incident data:", json.dumps(incident_data, indent=4)
                 )  # Log the incident data for debugging
 
                 incident = schemas.IncidentCreate(**incident_data)
@@ -260,13 +217,17 @@ async def slack_interactions(
                 raise HTTPException(
                     status_code=400, detail=f"Failed to parse request body: {str(e)}"
                 )
-                
             
-            # Time to save the incident to our postgre database
-            db_incident = models.Incident(**incident.dict())
+            
+            
+            # Time to save the incident to our postgresql database
+            db_incident = models.Incident(**incident.model_dump())
             db.add(db_incident)
             db.commit()
-            db.refresh(db_incident)  
+            db.refresh(db_incident) 
+            
+            if db_incident.end_time is None:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="End time not found")
             
             
             #Opsgenie integration
@@ -277,8 +238,12 @@ async def slack_interactions(
             
             #Jira integration-the logic is not implemented yet
             try:
-                issue = create_jira_ticket(incident.dict())
-                return {"issue_key": issue.key}
+                incident = db.query(Incident).filter(Incident.id == db_incident.id).first()
+                if not incident:
+                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+                issue = create_jira_ticket(incident)
+                # return {"issue_key": issue.key}
+                return {"issue_key": issue['key']}
             except Exception as e:
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))    
         else:

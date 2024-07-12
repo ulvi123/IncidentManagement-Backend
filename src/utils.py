@@ -72,7 +72,7 @@ async def create_modal_view(callback_id: str) -> dict:
                     {
                         "text": {
                             "type": "plain_text",
-                            "text": "Product 1"
+                            "text": "Betbuilder"
                         },
                         "value": "product_1"
                     },
