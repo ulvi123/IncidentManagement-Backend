@@ -163,9 +163,6 @@ async def slack_interactions(
                 end_date = state_values.get("end_time", {}).get("end_date_action", {}).get("selected_date")
                 end_time = state_values.get("end_time_picker", {}).get("end_time_picker_action", {}).get("selected_time")
                 
-                # Logging extracted values
-                print(f"Extracted start_date: {start_date}, start_time: {start_time}")
-                print(f"Extracted end_date: {end_date}, end_time: {end_time}")
 
                 
                 if not start_date or not start_time:
@@ -177,9 +174,6 @@ async def slack_interactions(
                 start_datetime_str = f"{start_date}T{start_time}:00"
                 end_datetime_str = f"{end_date}T{end_time}:00"
                 
-                  # Logging combined datetime strings
-                print(f"Combined start_datetime_str: {start_datetime_str}")
-                print(f"Combined end_datetime_str: {end_datetime_str}")
                 
                 #Exception handling
                 try:
@@ -188,43 +182,77 @@ async def slack_interactions(
                 except ValueError:
                     raise HTTPException(status_code=400, detail="Invalid datetime format")
                 
-                # Logging parsed datetime objects
-                print(f"Parsed start_time_obj: {start_time_obj}")
-                print(f"Parsed end_time_obj: {end_time_obj}")
+                
+                # Parsing the extracted values and converting them to the appropriate data types
+                # After receiving the Slack payload
+                # Extracting values from the Slack payload
+                affected_products_options = state_values.get("affected_products", {}).get("affected_products_action", {}).get("selected_options", [])
+                affected_products = [option["value"] for option in affected_products_options]
+
+                suspected_owning_team_options = state_values.get("suspected_owning_team", {}).get("suspected_owning_team_action", {}).get("selected_options", [])
+                suspected_owning_team = [option["value"] for option in suspected_owning_team_options]
+
+                suspected_affected_components_options = state_values.get("suspected_affected_components", {}).get("suspected_affected_components_action", {}).get("selected_options", [])
+                suspected_affected_components = [option["value"] for option in suspected_affected_components_options]
+
+                print(f"Extracted values: {affected_products} {suspected_owning_team} {suspected_affected_components}")
+
+
+                # Print for debugging
+                print(f"Processed Affected Products: {affected_products}")
+                print(f"Processed Suspected Owning Team: {suspected_owning_team}")
+                print(f"Processed Suspected Affected Components: {suspected_affected_components}")
+                print("Extracted values:", affected_products, suspected_owning_team)
 
                 
                 incident_data = {
-                    "affected_products": state_values.get("affected_products", {}).get("affected_products_action", {}).get("selected_option", {}).get("value"),
+                    "affected_products": affected_products,
                     "severity": state_values.get("severity", {}).get("severity_action", {}).get("selected_option", {}).get("value"),
-                    "suspected_owning_team": state_values.get("suspected_owning_team", {}).get("suspected_owning_team_action", {}).get("selected_options", [{}])[0].get("value"),
-                    "start_time": start_time_obj.isoformat(),  # Convert datetime to string
-                    "end_time": end_time_obj.isoformat(),  # Convert datetime to string
+                    "suspected_owning_team": suspected_owning_team,
+                    "start_time": start_time_obj.isoformat(),
+                    "end_time": end_time_obj.isoformat(),
                     "p1_customer_affected": any(option.get("value") == "p1_customer_affected" for option in state_values.get("p1_customer_affected", {}).get("p1_customer_affected_action", {}).get("selected_options", [])),
-                    "suspected_affected_components": state_values.get("suspected_affected_components", {}).get("suspected_affected_components_action", {}).get("selected_option", {}).get("value"),
+                    "suspected_affected_components": suspected_affected_components,
                     "description": state_values.get("description", {}).get("description_action", {}).get("value"),
                     "message_for_sp": state_values.get("message_for_sp", {}).get("message_for_sp_action", {}).get("value", ""),
                     "statuspage_notification": any(option.get("value") == "statuspage_notification" for option in state_values.get("flags_for_statuspage_notification", {}).get("flags_for_statuspage_notification_action", {}).get("selected_options", [])),
                     "separate_channel_creation": any(option.get("value") == "separate_channel_creation" for option in state_values.get("flags_for_statuspage_notification", {}).get("flags_for_statuspage_notification_action", {}).get("selected_options", [])),
                 }
-
+   
                 print(
                     "Incident data:", json.dumps(incident_data, indent=4)
                 )  # Log the incident data for debugging
+                
+                
 
-                incident = schemas.IncidentCreate(**incident_data)
+                try:
+                    incident = schemas.IncidentCreate(**incident_data)
+                    print(f"Incident data after parsing: {incident}")
+                except ValidationError as e:
+                    raise HTTPException(
+                        status_code=400, detail=f"Failed to parse request body: {str(e)}"
+                    )
+                # Log the parsed incident data fields
+                print("Incident data before Jira ticket creation:")
+                print(f"Affected Products: {incident.affected_products}")
+                print(f"Suspected Owning Team: {incident.suspected_owning_team}")
+                print(f"Suspected Affected Components: {incident.suspected_affected_components}")
 
             except ValidationError as e:
                 raise HTTPException(
                     status_code=400, detail=f"Failed to parse request body: {str(e)}"
                 )
             
-            
-            
             # Time to save the incident to our postgresql database
-            db_incident = models.Incident(**incident.model_dump())
+            db_incident = models.Incident(**incident.dict())
             db.add(db_incident)
             db.commit()
             db.refresh(db_incident) 
+            
+            # Add these debug print statements here
+            print(f"Incident data before Jira ticket creation:")
+            print(f"Affected Products: {db_incident.affected_products}")
+            print(f"Suspected Owning Team: {db_incident.suspected_owning_team}")
             
             if db_incident.end_time is None:
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="End time not found")
@@ -237,15 +265,23 @@ async def slack_interactions(
                 raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
             
             #Jira integration-the logic is not implemented yet
+            # try:
+            #     incident = db.query(Incident).filter(Incident.id == db_incident.id).first()
+            #     if not incident:
+            #         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+            #     issue = create_jira_ticket(incident)
+            #     return {"issue_key": issue['key']}
+            #     # return {"issue_key": issue.key}
+            # except Exception as e:
+            #     raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))    
             try:
-                incident = db.query(Incident).filter(Incident.id == db_incident.id).first()
-                if not incident:
-                    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
-                issue = create_jira_ticket(incident)
-                # return {"issue_key": issue.key}
-                return {"issue_key": issue['key']}
+                issue = create_jira_ticket(db_incident)
             except Exception as e:
-                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))    
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=str(e)
+                )
+            return {"issue_key": issue['key']}
         else:
             return JSONResponse(
                 status_code=404, content={"detail": "Command or callback ID not found"}

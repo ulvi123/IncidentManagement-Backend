@@ -41,12 +41,11 @@ async def slack_challenge_parameter_verification(request: Request):
 async def create_modal_view(callback_id: str) -> dict:
     return {
         "type": "modal",
-        "callback_id": callback_id,
-        "title": {"type": "plain_text", "text": "Report Incident"},
-        "submit": {"type": "plain_text", "text": "Submit"},
-        "close": {"type": "plain_text", "text": "Cancel"},
-        "private_metadata": json.dumps({"callback_id": callback_id}),
-        "blocks": [
+    "callback_id": "incident_form",
+    "title": {"type": "plain_text", "text": "Report Incident"},
+    "submit": {"type": "plain_text", "text": "Submit"},
+    "close": {"type": "plain_text", "text": "Cancel"},
+    "blocks": [
         {
             "type": "section",
             "block_id": "section1",
@@ -63,7 +62,7 @@ async def create_modal_view(callback_id: str) -> dict:
                 "text": "Affected Products"
             },
             "element": {
-                "type": "static_select",
+                "type": "multi_static_select",
                 "placeholder": {
                     "type": "plain_text",
                     "text": "Select products"
@@ -74,14 +73,14 @@ async def create_modal_view(callback_id: str) -> dict:
                             "type": "plain_text",
                             "text": "Betbuilder"
                         },
-                        "value": "product_1"
+                        "value": "Betbuilder"
                     },
                     {
                         "text": {
                             "type": "plain_text",
-                            "text": "Product 2"
+                            "text": "Betvision"
                         },
-                        "value": "product_2"
+                        "value": "Betvision"
                     }
                 ],
                 "action_id": "affected_products_action"
@@ -143,16 +142,16 @@ async def create_modal_view(callback_id: str) -> dict:
                     {
                         "text": {
                             "type": "plain_text",
-                            "text": "Team 1"
+                            "text": "SBMI"
                         },
-                        "value": "team_1"
+                        "value": "SBMI"
                     },
                     {
                         "text": {
                             "type": "plain_text",
-                            "text": "Team 2"
+                            "text": "Multibet"
                         },
-                        "value": "team_2"
+                        "value": "Multibet"
                     }
                 ],
                 "action_id": "suspected_owning_team_action"
@@ -324,23 +323,7 @@ async def create_modal_view(callback_id: str) -> dict:
                 ],
                 "action_id": "flags_for_statuspage_notification_action"
             }
-        },
-        # {
-        #     "type": "actions",
-        #     "block_id": "actionblock789",
-        #     "elements": [
-        #         {
-        #             "type": "button",
-        #             "text": {
-        #                 "type": "plain_text",
-        #                 "text": "Submit"
-        #             },
-        #             "style": "primary",
-        #             "value": "click_me_123",
-        #             "action_id": "button-action"
-        #         }
-        #     ]
-        # }
+        }
     ]
     }
  
