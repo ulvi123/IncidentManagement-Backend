@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from datetime import datetime
 from src.helperFunctions.opsgenie import create_alert
 from src.helperFunctions.jira import create_jira_ticket
+from src.utils import post_message_to_slack,create_slack_channel
 
 router = APIRouter()
 
@@ -179,7 +180,7 @@ async def slack_interactions(
                 try:
                     start_time_obj = datetime.strptime(start_datetime_str, '%Y-%m-%dT%H:%M:%S')
                     end_time_obj = datetime.strptime(end_datetime_str, '%Y-%m-%dT%H:%M:%S')
-                except ValueError:
+                except ValueError as e:
                     raise HTTPException(status_code=400, detail="Invalid datetime format")
                 
                 
@@ -249,6 +250,24 @@ async def slack_interactions(
             db.commit()
             db.refresh(db_incident) 
             
+            #Slack integration logic
+            try:
+                channel_name = f"incident-{db_incident.suspected_owning_team[0].replace(' ', '-').lower()}"
+                channel_id = await create_slack_channel(channel_name)
+                
+                # Post a message to the new channel
+                incident_message = f"New Incident Created:\n\n*Description:* {db_incident.description}\n*Severity:* {db_incident.severity}\n*Affected Products:* {', '.join(db_incident.affected_products)}\n*Start Time:* {db_incident.start_time}\n*End Time:* {db_incident.end_time}\n*Customer Affected:* {'Yes' if db_incident.p1_customer_affected else 'No'}\n*Suspected Owning Team:* {', '.join(db_incident.suspected_owning_team)}"
+                await post_message_to_slack(channel_id, incident_message)
+                
+                # Post a message to the general outages channel
+                general_outages_message = f"New Incident Created in #{channel_name}:\n\n*Description:* {db_incident.description}\n*Severity:* {db_incident.severity}\n*Affected Products:* {', '.join(db_incident.affected_products)}\n*Start Time:* {db_incident.start_time}\n*End Time:* {db_incident.end_time}\n*Customer Affected:* {'Yes' if db_incident.p1_customer_affected else 'No'}"
+                await post_message_to_slack(settings.SLACK_GENERAL_OUTAGES_CHANNEL, general_outages_message)
+
+            except Exception as e:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+            # return {"incident_id": db_incident.id}
+            
             # Add these debug print statements here
             print(f"Incident data before Jira ticket creation:")
             print(f"Affected Products: {db_incident.affected_products}")
@@ -281,7 +300,7 @@ async def slack_interactions(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=str(e)
                 )
-            return {"issue_key": issue['key']}
+            return {"incident_id": db_incident.id,"issue_key": issue['key']}
         else:
             return JSONResponse(
                 status_code=404, content={"detail": "Command or callback ID not found"}

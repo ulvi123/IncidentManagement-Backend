@@ -3,6 +3,12 @@ from .config import settings
 import hmac
 import hashlib
 import json
+import os
+import time
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
+from fastapi import HTTPException, status
+from src.config import settings
 
 
 async def verify_slack_request(
@@ -38,6 +44,13 @@ async def slack_challenge_parameter_verification(request: Request):
         return {"challenge": body.get("challenge")}
 
 
+async def load_options_from_file(file_path: str) -> dict:
+    assert os.path.exists(file_path), f"File {file_path} does not exist."
+    with open(file_path, "r") as f:
+        return json.load(f)
+    
+options = load_options_from_file("src/options.json")
+
 async def create_modal_view(callback_id: str) -> dict:
     return {
         "type": "modal",
@@ -67,22 +80,7 @@ async def create_modal_view(callback_id: str) -> dict:
                     "type": "plain_text",
                     "text": "Select products"
                 },
-                "options": [
-                    {
-                        "text": {
-                            "type": "plain_text",
-                            "text": "Betbuilder"
-                        },
-                        "value": "Betbuilder"
-                    },
-                    {
-                        "text": {
-                            "type": "plain_text",
-                            "text": "Betvision"
-                        },
-                        "value": "Betvision"
-                    }
-                ],
+                "options": [{"text": {"type": "plain_text", "text": item["text"]}, "value": item["value"]} for item in options["affected_products"]],
                 "action_id": "affected_products_action"
             }
         },
@@ -94,34 +92,12 @@ async def create_modal_view(callback_id: str) -> dict:
                 "text": "Severity"
             },
             "element": {
-                "type": "static_select",
+                "type": "multi_static_select",
                 "placeholder": {
                     "type": "plain_text",
                     "text": "Select severity"
                 },
-                "options": [
-                    {
-                        "text": {
-                            "type": "plain_text",
-                            "text": "High"
-                        },
-                        "value": "high"
-                    },
-                    {
-                        "text": {
-                            "type": "plain_text",
-                            "text": "Medium"
-                        },
-                        "value": "medium"
-                    },
-                    {
-                        "text": {
-                            "type": "plain_text",
-                            "text": "Low"
-                        },
-                        "value": "low"
-                    }
-                ],
+                "options": [{"text": {"type": "plain_text", "text": item["text"]}, "value": item["value"]} for item in options["severity"]],
                 "action_id": "severity_action"
             }
         },
@@ -138,22 +114,7 @@ async def create_modal_view(callback_id: str) -> dict:
                     "type": "plain_text",
                     "text": "Select teams"
                 },
-                "options": [
-                    {
-                        "text": {
-                            "type": "plain_text",
-                            "text": "SBMI"
-                        },
-                        "value": "SBMI"
-                    },
-                    {
-                        "text": {
-                            "type": "plain_text",
-                            "text": "Multibet"
-                        },
-                        "value": "Multibet"
-                    }
-                ],
+                "options": [{"text": {"type": "plain_text", "text": item["text"]}, "value": item["value"]} for item in options["suspected_owning_team"]],
                 "action_id": "suspected_owning_team_action"
             }
         },
@@ -328,3 +289,55 @@ async def create_modal_view(callback_id: str) -> dict:
     }
  
  
+ 
+ 
+ #slack channel creation logic
+slack_client = WebClient(token=settings.SLACK_BOT_TOKEN)
+
+async def get_channel_id(channel_name: str, retries: int = 3) -> str:
+        try:
+            response = slack_client.conversations_list()
+            for channel in response['channels']:
+                if channel['name'] == channel_name:
+                    print(f"Channel already exists. Channel ID: {channel['id']}")
+                    return channel['id']
+            return None
+        except SlackApiError as e:
+            print(f"Slack API error: {e.response['error']}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Slack API error: {e.response['error']}")
+
+async def post_message_to_slack(channel_id: str, message: str):
+    try:
+        slack_client.chat_postMessage(
+            channel=channel_id,
+            text=message
+        )
+        print(f"Message posted to Slack channel ID {channel_id}")
+    except SlackApiError as e:
+        print(f"Slack API error: {e.response['error']}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Slack API error: {e.response['error']}")
+
+async def create_slack_channel(channel_name: str) -> str:
+    try:
+        # Check if channel already exists
+        channel_id = await get_channel_id(channel_name)
+        if channel_id:
+            print(f"Channel already exists. Channel ID: {channel_id}")
+            return channel_id
+
+        # If the channel does not exist, create a new one
+        unique_channel_name = f"{channel_name}-{int(time.time())}"
+        response = slack_client.conversations_create(
+            name=unique_channel_name,
+            is_private=False
+        )
+        channel_id = response["channel"]["id"]
+        print(f"Channel created successfully. Channel ID: {channel_id}")
+        
+        # Adding a minor delay to make sure that Slack API recognizes the new channel
+        time.sleep(3)
+        return channel_id
+
+    except SlackApiError as e:
+        print(f"Slack API error: {e.response['error']}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Slack API error: {e.response['error']}")
