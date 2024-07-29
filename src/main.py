@@ -25,6 +25,6 @@ async def startup_event():
     global options
     try:
         options = await load_options_from_file(file_path)
-        print(f"Options loaded successfully: {options}")
+        print(f"Options loaded successfully")
     except Exception as e:
         print(f"Error loading options: {e}")
